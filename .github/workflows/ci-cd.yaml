@@ -31,8 +31,8 @@ jobs:
       # -----------------------------------
       - name: Bootstrap environment
         run: |
-          chmod +x prerequisites.sh
-          ./prerequisites.sh --quiet
+          chmod +x bootstrap.sh
+          ./bootstrap.sh --quiet
 
       # -----------------------------------
       # SAST - Semgrep
