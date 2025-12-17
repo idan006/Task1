@@ -30,6 +30,7 @@ jobs:
       # Bootstrap environment (same as devs)
       # -----------------------------------
       - name: Bootstrap environment
+        working-directory: ${{ github.workspace }}
         run: |
           chmod +x bootstrap.sh
           ./bootstrap.sh --quiet
