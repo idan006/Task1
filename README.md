@@ -1,16 +1,39 @@
-# DevOps Sample Node.js App
+# My App – DevOps, DevSecOps & GitOps Demo
 
-## Overview
+This repository demonstrates a **production-grade DevOps, DevSecOps, and GitOps workflow** for a stateless Node.js application deployed to Kubernetes.
 
-A lightweight Node.js application. It features basic web endpoints, Prometheus metrics integration, and is designed for Kubernetes deployment and CI/CD pipeline demonstrations.
+It is designed to be:
+- Fully reproducible
+- Secure by default
+- GitOps-driven
+- Verifiable end-to-end
 
-## Features
+---
 
-- Express.js web server
-- Prometheus metrics integration
-- Readiness and liveness probe endpoints
-- Customizable port via environment variable
+## System Architecture
 
-## Prerequisites
+```mermaid
+flowchart LR
+    Dev[Developer]
 
-- Node.js (v22.1.0)
+    Dev -->|Code Push| GitHub[(GitHub Repository)]
+
+    GitHub -->|Trigger| CI[GitHub Actions CI/CD]
+
+    CI -->|Bootstrap| Prereq[prerequisites.sh]
+    CI -->|SAST| Semgrep[Semgrep]
+    CI -->|Build Image| DockerBuild[Docker Build]
+    CI -->|Scan Image| Trivy[Trivy]
+
+    DockerBuild --> DockerHub[(Docker Hub)]
+    Trivy -->|Pass| DockerHub
+
+    CI -->|Update Helm values| GitHub
+
+    GitHub -->|Watched by| ArgoCD[ArgoCD]
+
+    ArgoCD -->|Deploy Helm Chart| K8s[(Kubernetes Cluster)]
+
+    K8s --> Service[Service]
+    Service --> Ingress[Ingress]
+    Ingress --> User[User / Client]

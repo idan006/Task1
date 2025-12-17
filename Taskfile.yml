@@ -1,0 +1,92 @@
+version: "3"
+
+vars:
+  IMAGE_NAME: idan006/idanhub
+  TAG: local
+  CLUSTER_NAME: idan-app
+  NAMESPACE: idan-app
+  RELEASE_NAME: idan-app
+  SERVICE_NAME: idan-app
+  LOCAL_PORT: 8080
+  SERVICE_PORT: 80
+
+tasks:
+  install:
+    desc: Install Node.js dependencies
+    cmds:
+      - npm ci
+
+  docker-build:
+    desc: Build Docker image
+    cmds:
+      - docker build -t {{.IMAGE_NAME}}:{{.TAG}} .
+
+  docker-run:
+    desc: Run app locally with Docker
+    cmds:
+      - docker run -p 8080:8080 {{.IMAGE_NAME}}:{{.TAG}}
+
+  deploy:
+    desc: Deploy app to kind and start port-forward
+    silent: true
+    cmds:
+      # Ensure kind cluster exists
+      - kind get clusters | grep -q "^{{.CLUSTER_NAME}}$" || kind create cluster --name {{.CLUSTER_NAME}}
+
+      # Load image into kind
+      - kind load docker-image {{.IMAGE_NAME}}:{{.TAG}} --name {{.CLUSTER_NAME}}
+
+      # Deploy via Helm (NO heredoc, NO shell block)
+      - helm upgrade --install {{.SERVICE_NAME}} helm/my-app --namespace {{.NAMESPACE}} --create-namespace --set image.tag={{.TAG}}
+
+      # Start port-forward in background
+      - pgrep -f "kubectl port-forward svc/{{.SERVICE_NAME}}" >/dev/null || nohup kubectl port-forward svc/{{.SERVICE_NAME}} {{.LOCAL_PORT}}:{{.SERVICE_PORT}} -n {{.NAMESPACE}} >/tmp/{{.SERVICE_NAME}}-port-forward.log 2>&1 &
+
+
+  kind-status:
+    desc: Show Kubernetes deployment status
+    cmds:
+      - kubectl get pods -n {{.NAMESPACE}}
+      - kubectl get svc -n {{.NAMESPACE}}
+
+  kind-port-forward:
+    desc: Port-forward service to localhost
+    cmds:
+      - kubectl port-forward svc/{{.RELEASE_NAME}} 8080:80 -n {{.NAMESPACE}}
+      
+  verify:
+    desc: Verify all application endpoints via port-forward
+    silent: true
+    cmds:
+      - |
+        set -e
+
+        echo "🔍 Verifying application endpoints..."
+
+        curl -sf http://localhost:8080/my-app | grep -q "Hello, World!" \
+          && echo "✔ /my-app OK" \
+          || (echo "✖ /my-app FAILED" && exit 1)
+
+        curl -sf http://localhost:8080/about | grep -q "This is a sample Node.js application for Kubernetes deployment testing." \
+          && echo "✔ /about OK" \
+          || (echo "✖ /about FAILED" && exit 1)
+
+        curl -sf http://localhost:8080/ready | grep -q "Ready" \
+          && echo "✔ /ready OK" \
+          || (echo "✖ /ready FAILED" && exit 1)
+
+        curl -sf http://localhost:8080/live | grep -q "Alive" \
+          && echo "✔ /live OK" \
+          || (echo "✖ /live FAILED" && exit 1)
+
+        curl -sf http://localhost:8080/classified | grep -q "You should not be here!!!" \
+          && echo "✔ /classified OK" \
+          || (echo "✖ /classified FAILED" && exit 1)
+
+        curl -sf http://localhost:8080/metrics | grep -E -q "^[a-zA-Z_:][a-zA-Z0-9_:]*" \
+          && echo "✔ /metrics OK (Prometheus-style output detected)" \
+          || (echo "✖ /metrics FAILED" && exit 1)
+
+        echo "✅ All verification checks passed"
+
+

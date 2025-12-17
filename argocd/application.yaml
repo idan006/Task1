@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: idan-app
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: idan-app
+    app.kubernetes.io/instance: idan-app
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/idan006/Refael
+    targetRevision: main
+    path: helm/my-app
+    helm:
+      valueFiles:
+        - values.yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: idan-app
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

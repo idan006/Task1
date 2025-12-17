@@ -1,0 +1,40 @@
+replicaCount: 2
+
+image:
+  repository: idan006/idanhub
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+container:
+  port: 8080
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: my-app.local
+      paths:
+        - path: /
+          pathType: Prefix
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "256Mi"
+
+probes:
+  readiness:
+    path: /ready
+    initialDelaySeconds: 5
+    periodSeconds: 5
+  liveness:
+    path: /live
+    initialDelaySeconds: 10
+    periodSeconds: 10

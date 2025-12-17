@@ -1,0 +1,110 @@
+name: CI-CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: write
+  security-events: write
+
+env:
+  IMAGE_NAME: idan006/idanhub
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    steps:
+      # -----------------------------------
+      # Checkout
+      # -----------------------------------
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # REQUIRED for tags
+
+      # -----------------------------------
+      # Bootstrap environment (same as devs)
+      # -----------------------------------
+      - name: Bootstrap environment
+        run: |
+          chmod +x prerequisites.sh
+          ./prerequisites.sh --quiet
+
+      # -----------------------------------
+      # SAST - Semgrep
+      # -----------------------------------
+      - name: Run Semgrep (SAST)
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: p/ci
+          severity: ERROR
+
+      # -----------------------------------
+      # Version bump (Trunk-Based, numeric)
+      # -----------------------------------
+      - name: Generate build version
+        id: version
+        if: github.ref == 'refs/heads/main'
+        run: |
+          BUILD_ID=$(date +%Y%m%d%H%M%S)
+          echo "version=$BUILD_ID" >> $GITHUB_OUTPUT
+
+      # -----------------------------------
+      # Docker build
+      # -----------------------------------
+      - name: Docker build
+        run: |
+          docker build \
+            -t $IMAGE_NAME:${{ steps.version.outputs.version }} \
+            -t $IMAGE_NAME:latest \
+            .
+
+      # -----------------------------------
+      # Container scan - Trivy
+      # -----------------------------------
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
+          severity: HIGH,CRITICAL
+          exit-code: 1
+          ignore-unfixed: true
+
+      # -----------------------------------
+      # Docker login
+      # -----------------------------------
+      - name: Login to Docker Hub
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "${{ secrets.DOCKERHUB_TOKEN }}" | \
+          docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+      # -----------------------------------
+      # Push image
+      # -----------------------------------
+      - name: Push Docker image
+        if: github.ref == 'refs/heads/main'
+        run: |
+          docker push $IMAGE_NAME:${{ steps.version.outputs.version }}
+          docker push $IMAGE_NAME:latest
+
+      # -----------------------------------
+      # GitOps trigger (Helm values update)
+      # -----------------------------------
+      - name: Update Helm image tag
+        if: github.ref == 'refs/heads/main'
+        run: |
+          sed -i 's/tag:.*/tag: "${{ steps.version.outputs.version }}"/' helm/my-app/values.yaml
+
+      - name: Commit Helm update
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add helm/my-app/values.yaml
+          git commit -m "chore(gitops): deploy ${{ steps.version.outputs.version }}"
+          git push origin main
