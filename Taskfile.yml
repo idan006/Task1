@@ -11,21 +11,6 @@ vars:
   SERVICE_PORT: 80
 
 tasks:
-  install:
-    desc: Install Node.js dependencies
-    cmds:
-      - npm ci
-
-  docker-build:
-    desc: Build Docker image
-    cmds:
-      - docker build -t {{.IMAGE_NAME}}:{{.TAG}} .
-
-  docker-run:
-    desc: Run app locally with Docker
-    cmds:
-      - docker run -p 8080:8080 {{.IMAGE_NAME}}:{{.TAG}}
-
   deploy:
     desc: Deploy app to kind and start port-forward
     silent: true
@@ -43,17 +28,12 @@ tasks:
       - pgrep -f "kubectl port-forward svc/{{.SERVICE_NAME}}" >/dev/null || nohup kubectl port-forward svc/{{.SERVICE_NAME}} {{.LOCAL_PORT}}:{{.SERVICE_PORT}} -n {{.NAMESPACE}} >/tmp/{{.SERVICE_NAME}}-port-forward.log 2>&1 &
 
 
-  kind-status:
+  status:
     desc: Show Kubernetes deployment status
     cmds:
       - kubectl get pods -n {{.NAMESPACE}}
       - kubectl get svc -n {{.NAMESPACE}}
 
-  kind-port-forward:
-    desc: Port-forward service to localhost
-    cmds:
-      - kubectl port-forward svc/{{.RELEASE_NAME}} 8080:80 -n {{.NAMESPACE}}
-      
   verify:
     desc: Verify all application endpoints via port-forward
     silent: true
@@ -88,5 +68,24 @@ tasks:
           || (echo "✖ /metrics FAILED" && exit 1)
 
         echo "✅ All verification checks passed"
+
+  cleanup:
+    desc: Remove application and kind cluster
+    silent: true
+    cmds:
+      - |
+        echo "🧹 Cleaning up Helm release and namespace"
+        helm uninstall {{.SERVICE_NAME}} -n {{.NAMESPACE}} || true
+        kubectl delete namespace {{.NAMESPACE}} --ignore-not-found
+
+      - |
+        echo "🧹 Deleting kind cluster '{{.CLUSTER_NAME}}'"
+        kind delete cluster --name {{.CLUSTER_NAME}} || true
+
+      - |
+        echo "🧹 Stopping port-forward if running"
+        pkill -f "kubectl port-forward svc/{{.SERVICE_NAME}}" || true
+
+      - echo "✔ Cleanup completed"
 
 

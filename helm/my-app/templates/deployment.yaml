@@ -26,6 +26,10 @@ spec:
             - name: http
               containerPort: {{ .Values.container.port }}
 
+          envFrom:
+            - configMapRef:
+                name: {{ .Release.Name }}-config
+
           readinessProbe:
             httpGet:
               path: {{ .Values.probes.readiness.path }}

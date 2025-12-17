@@ -37,3 +37,39 @@ flowchart LR
     K8s --> Service[Service]
     Service --> Ingress[Ingress]
     Ingress --> User[User / Client]
+
+
+---
+
+## Project Checklist
+
+### Helm & Kubernetes
+- [x] Helm chart with Deployment, Service, Ingress
+- [x] Correct use of Deployment (stateless app)
+- [x] Readiness and liveness probes
+- [x] CPU and memory requests & limits
+- [x] ConfigMap for externalized configuration
+
+### CI/CD & DevSecOps
+- [x] GitHub Actions CI/CD pipeline
+- [x] Trunk-based development workflow
+- [x] Numeric build/version IDs
+- [x] SAST using Semgrep (blocking)
+- [x] Image vulnerability scanning using Trivy (blocking)
+
+### Docker & Registry
+- [x] Plain Docker build
+- [x] Dockerfile included
+- [x] Image pushed to Docker Hub (`idan006/idanhub`)
+
+### GitOps & Deployment
+- [x] ArgoCD Application manifest
+- [x] Declarative deployment via Helm
+- [x] GitOps model clearly explained
+- [x] CI updates Git, ArgoCD deploys
+
+### Developer Experience
+- [x] Shared bootstrap script (`prerequisites.sh`)
+- [x] Deterministic local deploy (`task deploy`)
+- [x] Deterministic verification (`task verify`)
+- [x] Full cleanup (`task cleanup`)
