@@ -19,20 +19,20 @@ jobs:
 
     steps:
       # -----------------------------------
-      # Checkout
+      # Checkout (MUST be first)
       # -----------------------------------
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # REQUIRED for tags
+          fetch-depth: 0  # Required for GitOps commits & versioning
 
       # -----------------------------------
-      # Bootstrap environment (same as devs)
+      # Bootstrap environment (same script devs use)
+      # MUST run before any container-based actions
       # -----------------------------------
       - name: Bootstrap environment
-        working-directory: ${{ github.workspace }}
         run: |
-          chmod +x bootstrap.sh
+          chmod +x ./bootstrap.sh
           ./bootstrap.sh --quiet
 
       # -----------------------------------
@@ -45,7 +45,7 @@ jobs:
           severity: ERROR
 
       # -----------------------------------
-      # Version bump (Trunk-Based, numeric)
+      # Version generation (Trunk-Based, numeric)
       # -----------------------------------
       - name: Generate build version
         id: version
@@ -55,7 +55,7 @@ jobs:
           echo "version=$BUILD_ID" >> $GITHUB_OUTPUT
 
       # -----------------------------------
-      # Docker build
+      # Docker build (plain Docker)
       # -----------------------------------
       - name: Docker build
         run: |
@@ -65,7 +65,7 @@ jobs:
             .
 
       # -----------------------------------
-      # Container scan - Trivy
+      # Container vulnerability scan - Trivy
       # -----------------------------------
       - name: Scan image with Trivy
         uses: aquasecurity/trivy-action@0.20.0
@@ -85,7 +85,7 @@ jobs:
           docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
       # -----------------------------------
-      # Push image
+      # Push Docker image
       # -----------------------------------
       - name: Push Docker image
         if: github.ref == 'refs/heads/main'
@@ -95,11 +95,12 @@ jobs:
 
       # -----------------------------------
       # GitOps trigger (Helm values update)
+      # ArgoCD will reconcile automatically
       # -----------------------------------
       - name: Update Helm image tag
         if: github.ref == 'refs/heads/main'
         run: |
-          sed -i 's/tag:.*/tag: "${{ steps.version.outputs.version }}"/' helm/my-app/values.yaml
+          sed -i "s/tag:.*/tag: ${{ steps.version.outputs.version }}/" helm/my-app/values.yaml
 
       - name: Commit Helm update
         if: github.ref == 'refs/heads/main'
